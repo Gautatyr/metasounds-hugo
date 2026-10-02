@@ -27,7 +27,7 @@ jobs:
             docker pull $IMAGE:$TAG
             docker stop metasounds || true
             docker rm metasounds || true
-            docker run -d --name metasounds -p 5000:5000 --restart unless-stopped $IMAGE:$TAG
+            docker run -d --name metasounds -p 8080:8080 --restart unless-stopped $IMAGE:$TAG
             docker image prune -f
         env:
           TAG: ${{ github.event.inputs.tag }}
