@@ -1,0 +1,33 @@
+name: Deploy to VM
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag de l'image à déployer (sha du commit ou latest)"
+        required: true
+        default: "latest"
+
+env:
+  IMAGE: europe-west1-docker.pkg.dev/cs-poc-hpzdycpiqjyvinhrczvlwcn/metasounds-jeanluc/metasounds
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 207.175.16.126
+          username: jeanluc
+          key: ${{ secrets.VM_SSH_KEY }}
+          envs: IMAGE,TAG
+          script: |
+            gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
+            docker pull $IMAGE:$TAG
+            docker stop metasounds || true
+            docker rm metasounds || true
+            docker run -d --name metasounds -p 5000:5000 --restart unless-stopped $IMAGE:$TAG
+            docker image prune -f
+        env:
+          TAG: ${{ github.event.inputs.tag }}
