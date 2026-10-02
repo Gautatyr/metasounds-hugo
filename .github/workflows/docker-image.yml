@@ -7,6 +7,11 @@ on:
 env:
   IMAGE: europe-west1-docker.pkg.dev/cs-poc-hpzdycpiqjyvinhrczvlwcn/metasounds-jeanluc/metasounds
 
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
   build-push:
     runs-on: ubuntu-latest
@@ -18,20 +23,34 @@ jobs:
         run: |
           docker build . --tag $IMAGE:${{ github.sha }} --tag $IMAGE:latest
 
-      - name: Run Trivy vulnerability scanner
+      - name: Trivy scan (SARIF pour l'onglet Security)
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: '$IMAGE:${{ github.sha }}'
+          image-ref: '${{ env.IMAGE }}:${{ github.sha }}'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+          limit-severities-for-sarif: true
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+      - name: Trivy gate (bloque si CRITICAL/HIGH)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: '${{ env.IMAGE }}:${{ github.sha }}'
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
-
-      - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v4
-        with:
-          sarif_file: 'trivy-results.sarif'   
+          skip-setup-trivy: true
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -43,7 +62,6 @@ jobs:
 
       - name: Configure Docker for Artifact Registry
         run: gcloud auth configure-docker europe-west1-docker.pkg.dev --quiet
-
 
       - name: Push
         run: |
